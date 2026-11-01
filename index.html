@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acaba Basılır mı?</title>
+<meta name="description" content="STL / OBJ dosyanı yükle; 3D baskıya uygun mu, delik, ters yüz, ince duvar ve çıkıntı hataları var mı kontrol et.">
+<style>
+:root{--bg:#000;--panel:#0a0a0a;--line:#1d1d1d;--tx:#ececec;--mut:#8a8a8a;--ok:#3ddc84;--warn:#ffb020;--bad:#ff4d4d}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.app{display:grid;grid-template-columns:380px 1fr;height:100%}
+aside{border-right:1px solid var(--line);background:var(--panel);overflow:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin;scrollbar-color:#333 transparent}
+h1{font-size:20px;margin:0;line-height:1.25}
+h1 span{display:block;color:var(--mut);font-weight:400;font-size:13px;margin-top:2px}
+.drop{border:1px dashed #333;border-radius:12px;padding:22px 12px;text-align:center;color:var(--mut);cursor:pointer;transition:.15s;display:block}
+.drop:hover,.drop.on{border-color:#fff;color:#fff;background:#111}
+.drop b{color:#fff;display:block;margin-bottom:2px}
+input[type=file]{display:none}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+select{background:#111;color:var(--tx);border:1px solid #2a2a2a;border-radius:8px;padding:7px 8px;font:inherit;font-size:13px;text-transform:none;letter-spacing:0}
+select:focus{outline:none;border-color:#fff}
+.samples{font-size:12.5px;color:var(--mut)}
+.samples a{color:var(--tx);cursor:pointer;text-decoration:underline;text-decoration-color:#444;text-underline-offset:3px;margin-left:8px}
+.samples a:hover{text-decoration-color:#fff}
+.verdict{border:1px solid var(--line);border-radius:12px;padding:14px;display:none;align-items:center;gap:14px}
+.verdict .sc{width:54px;height:54px;border-radius:50%;border:3px solid currentColor;display:grid;place-items:center;font-weight:700;font-size:17px;flex:none}
+.verdict .t{font-size:17px;font-weight:700;line-height:1.25}
+.verdict .s{color:var(--mut);font-size:12.5px;margin-top:2px;word-break:break-all}
+.verdict.ok{border-color:var(--ok);color:var(--ok)}.verdict.warn{border-color:var(--warn);color:var(--warn)}.verdict.bad{border-color:var(--bad);color:var(--bad)}
+.verdict.load{color:var(--mut)}.verdict.load .sc{display:none}
+.verdict .t,.verdict .s{color:inherit}.verdict .s{color:var(--mut)}
+.checks{display:flex;flex-direction:column;gap:8px}
+.chk{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+.chk .n{font-weight:600}.chk .d{color:var(--mut);font-size:12.5px}
+.chk .fix{color:#cfcfcf;font-size:12.5px;margin-top:3px}.chk .fix:before{content:"Çözüm: ";color:var(--mut)}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.info div{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px}
+.info small{display:block;color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+button{background:#111;color:var(--tx);border:1px solid #2a2a2a;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:13px}
+button:hover{border-color:#fff}button.act{background:#fff;color:#000;border-color:#fff}
+.est{border:1px solid var(--line);border-radius:12px;overflow:hidden;display:none}
+.est h2{margin:0;padding:10px 12px;font-size:13px;font-weight:600;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.est h2 span{color:var(--mut);font-weight:400}
+.pr{display:grid;grid-template-columns:1fr auto;gap:8px;padding:7px 12px;border-bottom:1px solid #121212;cursor:pointer;font-size:13px;align-items:center}
+.pr:hover{background:#101010}.pr.sel{background:#141414;box-shadow:inset 2px 0 #fff}
+.pr small{display:block;color:var(--mut);font-size:11px}
+.pr b{font-variant-numeric:tabular-nums;text-align:right}
+.pr.no{opacity:.45}.pr.no b{color:var(--bad);font-weight:500}
+.note{color:#666;font-size:11.5px;padding:8px 12px}
+main{position:relative;min-width:0}
+#view{position:absolute;inset:0}
+.hint{position:absolute;left:16px;bottom:14px;color:#666;font-size:12px;pointer-events:none}
+.legend{position:absolute;right:16px;top:14px;color:var(--mut);font-size:12px;display:flex;flex-direction:column;gap:3px;text-align:right;pointer-events:none}
+.legend i{display:inline-block;width:10px;height:3px;margin-right:6px;vertical-align:middle}
+.empty{position:absolute;inset:0;display:grid;place-items:center;color:#2e2e2e;font-size:15px;pointer-events:none}
+.foot{color:#555;font-size:11.5px;margin-top:auto}
+@media(max-width:800px){.app{grid-template-columns:1fr;grid-template-rows:50vh 1fr}aside{order:2;border-right:0;border-top:1px solid var(--line)}main{order:1}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1>Acaba basılır mı?<span>3D baskı öncesi model kontrolü</span></h1>
+  <label class="drop" id="drop">
+    <b>STL veya OBJ dosyanı bırak</b>ya da tıklayıp seç
+    <input type="file" id="file" accept=".stl,.obj">
+  </label>
+  <div class="row">
+    <label class="f">Yazıcı
+      <select id="printer"></select>
+    </label>
+    <label class="f">Model birimi
+      <select id="unit">
+        <option value="1">Milimetre (mm)</option>
+        <option value="10">Santimetre (cm)</option>
+        <option value="25.4">İnç (inch)</option>
+        <option value="1000">Metre (m)</option>
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <label class="f">Filament
+      <select id="mat">
+        <option value="pla">PLA</option><option value="petg">PETG</option>
+        <option value="abs">ABS / ASA</option><option value="tpu">TPU (esnek)</option>
+      </select>
+    </label>
+    <label class="f">Katman yüksekliği
+      <select id="layer">
+        <option value="0.12">0.12 mm (ince)</option><option value="0.16">0.16 mm</option>
+        <option value="0.2" selected>0.20 mm (standart)</option><option value="0.28">0.28 mm (hızlı)</option>
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <label class="f">Dolgu
+      <select id="infill">
+        <option value="10">%10</option><option value="15">%15</option>
+        <option value="20" selected>%20</option><option value="40">%40</option>
+        <option value="100">%100 (dolu)</option>
+      </select>
+    </label>
+    <label class="f">Destek
+      <select id="supp">
+        <option value="0">Yok</option><option value="1">Otomatik (ağaç destek)</option>
+      </select>
+    </label>
+  </div>
+  <div class="samples">Dene:<a data-s="good">sağlam küp</a><a data-s="open">delikli küp</a><a data-s="flip">ters küp</a></div>
+  <div class="verdict" id="verdict"><div class="sc"></div><div><div class="t"></div><div class="s"></div></div></div>
+  <div class="tools" id="tools"></div>
+  <div class="info" id="info"></div>
+  <div class="est" id="est"></div>
+  <div class="checks" id="checks"></div>
+  <div class="foot">Dosyan sunucuya gönderilmez, tüm analiz tarayıcında yapılır. Bu otomatik bir ön kontroldür; kesin sonuç için dilimleyicide (slicer) de önizleme yap.</div>
+</aside>
+<main>
+  <div id="view"></div>
+  <div class="empty" id="empty">Model burada görünecek</div>
+  <div class="legend" id="legend"></div>
+  <div class="hint">Döndür: sol tık · Kaydır: sağ tık · Yakınlaştır: tekerlek</div>
+</main>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+const $=id=>document.getElementById(id);
+const view=$('view');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+view.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x000000);
+const camera=new THREE.PerspectiveCamera(45,1,0.01,100000);camera.up.set(0,0,1);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x222222,1.1));
+const dl=new THREE.DirectionalLight(0xffffff,1.6);dl.position.set(1,-1,2);scene.add(dl);
+const dl2=new THREE.DirectionalLight(0xffffff,0.6);dl2.position.set(-1,1,-1);scene.add(dl2);
+let group=null,meshObj=null,wireObj=null,errObj=null,bedObj=null;
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+(function loop(){requestAnimationFrame(loop);controls.update();renderer.render(scene,camera)})();
+
+/* ---------- Ayarlar ---------- */
+/* b: tabla (mm) · flow: gerçekçi maksimum akış (mm³/s) · spd: pratik hız (mm/s) · eff: ivmelenme verimi · lay: katman başı ek süre (s) · heat: ısınma (s)
+   Değerler yaklaşık/ortalama alınmıştır, üretici verisi değildir. */
+const PRINTERS=[
+ {n:'Creality Ender 3 V2',b:[220,220,250],flow:8,spd:60,eff:.7,lay:4,heat:300},
+ {n:'Creality Ender 3 V3 SE',b:[220,220,250],flow:12,spd:150,eff:.65,lay:3,heat:200},
+ {n:'Creality Ender 3 V3 KE',b:[220,220,240],flow:16,spd:200,eff:.65,lay:3,heat:180},
+ {n:'Creality K1',b:[220,220,250],flow:25,spd:300,eff:.6,lay:2.5,heat:150},
+ {n:'Creality K1C',b:[220,220,250],flow:25,spd:300,eff:.6,lay:2.5,heat:150},
+ {n:'Creality K1 Max',b:[300,300,300],flow:25,spd:300,eff:.6,lay:2.5,heat:200},
+ {n:'Creality CR-10 SE',b:[220,220,265],flow:12,spd:150,eff:.65,lay:3,heat:240},
+ {n:'Bambu Lab A1 mini',b:[180,180,180],flow:15,spd:200,eff:.65,lay:2.5,heat:120},
+ {n:'Bambu Lab A1',b:[256,256,256],flow:20,spd:250,eff:.65,lay:2.5,heat:150},
+ {n:'Bambu Lab P1P',b:[256,256,256],flow:24,spd:300,eff:.65,lay:2.5,heat:120},
+ {n:'Bambu Lab P1S',b:[256,256,256],flow:24,spd:300,eff:.65,lay:2.5,heat:120},
+ {n:'Bambu Lab X1 Carbon',b:[256,256,256],flow:25,spd:300,eff:.65,lay:2.5,heat:120},
+ {n:'Bambu Lab H2D',b:[325,320,325],flow:28,spd:300,eff:.65,lay:2.5,heat:150},
+ {n:'Prusa MK4S',b:[250,210,220],flow:15,spd:150,eff:.7,lay:3,heat:200},
+ {n:'Prusa MINI+',b:[180,180,180],flow:8,spd:80,eff:.7,lay:4,heat:240},
+ {n:'Prusa XL',b:[360,360,360],flow:15,spd:150,eff:.7,lay:3,heat:300},
+ {n:'Elegoo Neptune 4 Pro',b:[225,225,265],flow:14,spd:250,eff:.65,lay:3,heat:180},
+ {n:'Anycubic Kobra 3',b:[250,250,260],flow:12,spd:200,eff:.65,lay:3,heat:200},
+ {n:'Flashforge Adventurer 5M',b:[220,220,220],flow:16,spd:300,eff:.65,lay:2.5,heat:150},
+ {n:'Sovol SV06',b:[220,220,250],flow:12,spd:150,eff:.7,lay:3,heat:240},
+ {n:'Qidi Plus4',b:[305,305,280],flow:24,spd:300,eff:.65,lay:2.5,heat:200}
+];
+PRINTERS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${p.n} · ${p.b.join('×')}`;$('printer').appendChild(o)});
+const PERSIST=['printer','unit','mat','layer','infill','supp'];
+try{PERSIST.forEach(k=>{const v=localStorage.getItem('abm_'+k);if(v!==null&&[...$(k).options].some(o=>o.value===v))$(k).value=v})}catch(e){}
+const save=k=>{try{localStorage.setItem('abm_'+k,$(k).value)}catch(e){}};
+const bed=()=>PRINTERS[+$('printer').value].b;
+const unitF=()=>+$('unit').value;
+const MAT={pla:1.24,petg:1.27,abs:1.04,tpu:1.21};
+
+/* ---------- Parsers ---------- */
+function parseSTL(buf){
+  const dv=new DataView(buf);
+  if(buf.byteLength>=84){
+    const n=dv.getUint32(80,true);
+    if(84+n*50===buf.byteLength){
+      const p=new Float32Array(n*9);
+      for(let i=0;i<n;i++){const o=84+i*50+12;for(let j=0;j<9;j++)p[i*9+j]=dv.getFloat32(o+j*4,true)}
+      return p;
+    }
+  }
+  const txt=new TextDecoder().decode(buf);
+  const re=/vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g;
+  const a=[];let m;
+  while((m=re.exec(txt)))a.push(+m[1],+m[2],+m[3]);
+  if(a.length<9)throw new Error('STL dosyası okunamadı.');
+  return new Float32Array(a.slice(0,Math.floor(a.length/9)*9));
+}
+function parseOBJ(buf){
+  const txt=new TextDecoder().decode(buf);
+  const v=[],out=[];
+  for(const raw of txt.split(/\r?\n/)){
+    const l=raw.trim();
+    if(l.startsWith('v ')){const t=l.split(/\s+/);v.push([+t[1],+t[2],+t[3]])}
+    else if(l.startsWith('f ')){
+      const t=l.split(/\s+/).slice(1).map(s=>{const i=parseInt(s.split('/')[0]);return i<0?v.length+i:i-1});
+      for(let i=1;i+1<t.length;i++)for(const k of [t[0],t[i],t[i+1]]){const p=v[k];if(!p)throw new Error('OBJ içinde geçersiz yüz indeksi.');out.push(p[0],p[1],p[2])}
+    }
+  }
+  if(out.length<9)throw new Error('OBJ dosyasında yüz (face) bulunamadı.');
+  return new Float32Array(out);
+}
+function toSTL(pos,flip){
+  const nt=pos.length/9,buf=new ArrayBuffer(84+nt*50),dv=new DataView(buf);
+  dv.setUint32(80,nt,true);
+  for(let t=0;t<nt;t++){
+    const o=84+t*50,s=t*9;
+    const a=[pos[s],pos[s+1],pos[s+2]],b=[pos[s+3],pos[s+4],pos[s+5]],c=[pos[s+6],pos[s+7],pos[s+8]];
+    const tri=flip?[a,c,b]:[a,b,c];
+    const u=[tri[1][0]-tri[0][0],tri[1][1]-tri[0][1],tri[1][2]-tri[0][2]],w=[tri[2][0]-tri[0][0],tri[2][1]-tri[0][1],tri[2][2]-tri[0][2]];
+    let n=[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]];const l=Math.hypot(...n)||1;n=n.map(x=>x/l);
+    for(let k=0;k<3;k++)dv.setFloat32(o+k*4,n[k],true);
+    tri.forEach((p,i)=>{for(let k=0;k<3;k++)dv.setFloat32(o+12+i*12+k*4,p[k],true)});
+  }
+  return new Blob([buf],{type:'model/stl'});
+}
+
+/* ---------- Örnek modeller ---------- */
+function box(s,drop,flip){
+  const V=[[0,0,0],[s,0,0],[s,s,0],[0,s,0],[0,0,s],[s,0,s],[s,s,s],[0,s,s]];
+  let T=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[3,7,6],[3,6,2],[0,4,7],[0,7,3],[1,2,6],[1,6,5]];
+  if(drop)T=T.filter((_,i)=>i!==2&&i!==3);
+  const o=[];for(const t of T){const tt=flip?[t[0],t[2],t[1]]:t;for(const k of tt)o.push(...V[k])}
+  return new Float32Array(o);
+}
+
+/* ---------- Analiz ---------- */
+function thinWall(verts,idx,nt,vol,diag){
+  const S=Math.max(20,Math.min(300,Math.floor(6e7/nt))),step=Math.max(1,Math.floor(nt/S)),sg=vol>=0?-1:1;
+  let min=Infinity,below=0,hits=0;const eps=diag*1e-5,tmin=diag*1e-6;
+  for(let t=0;t<nt;t+=step){
+    const a=idx[t*3]*3,b=idx[t*3+1]*3,c=idx[t*3+2]*3;
+    const ux=verts[b]-verts[a],uy=verts[b+1]-verts[a+1],uz=verts[b+2]-verts[a+2],vx=verts[c]-verts[a],vy=verts[c+1]-verts[a+1],vz=verts[c+2]-verts[a+2];
+    let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz);if(l<1e-20)continue;
+    const dx=sg*nx/l,dy=sg*ny/l,dz=sg*nz/l;
+    const ox=(verts[a]+verts[b]+verts[c])/3+dx*eps,oy=(verts[a+1]+verts[b+1]+verts[c+1])/3+dy*eps,oz=(verts[a+2]+verts[b+2]+verts[c+2])/3+dz*eps;
+    let best=Infinity;
+    for(let j=0;j<nt;j++){
+      if(j===t)continue;
+      const p=idx[j*3]*3,q=idx[j*3+1]*3,r=idx[j*3+2]*3;
+      const e1x=verts[q]-verts[p],e1y=verts[q+1]-verts[p+1],e1z=verts[q+2]-verts[p+2],e2x=verts[r]-verts[p],e2y=verts[r+1]-verts[p+1],e2z=verts[r+2]-verts[p+2];
+      const hx=dy*e2z-dz*e2y,hy=dz*e2x-dx*e2z,hz=dx*e2y-dy*e2x;
+      const A=e1x*hx+e1y*hy+e1z*hz;if(A>-1e-14&&A<1e-14)continue;
+      const f=1/A,sx=ox-verts[p],sy=oy-verts[p+1],sz=oz-verts[p+2];
+      const u=f*(sx*hx+sy*hy+sz*hz);if(u<0||u>1)continue;
+      const qx=sy*e1z-sz*e1y,qy=sz*e1x-sx*e1z,qz=sx*e1y-sy*e1x;
+      const v=f*(dx*qx+dy*qy+dz*qz);if(v<0||u+v>1)continue;
+      const tt=f*(e2x*qx+e2y*qy+e2z*qz);
+      if(tt>tmin&&tt<best)best=tt;
+    }
+    if(best<Infinity){hits++;if(best<min)min=best;if(best<0.8)below++}
+  }
+  return {min,below,hits};
+}
+function analyze(pos){
+  const nt=pos.length/9;
+  const mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity];
+  for(let i=0;i<pos.length;i+=3)for(let k=0;k<3;k++){const x=pos[i+k];if(x<mn[k])mn[k]=x;if(x>mx[k])mx[k]=x}
+  const size=[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]];
+  const diag=Math.hypot(...size)||1,q=diag*1e-6;
+  const map=new Map(),verts=[],idx=new Uint32Array(nt*3);
+  for(let i=0;i<nt*3;i++){
+    const x=pos[i*3],y=pos[i*3+1],z=pos[i*3+2];
+    const key=Math.round(x/q)+','+Math.round(y/q)+','+Math.round(z/q);
+    let id=map.get(key);
+    if(id===undefined){id=verts.length/3;map.set(key,id);verts.push(x,y,z)}
+    idx[i]=id;
+  }
+  map.clear();
+  const nv=verts.length/3,edges=new Map();
+  let degenerate=0,nanCount=0,area=0,vol=0,overArea=0,dupFaces=0,supportVol=0;
+  const faceKeys=new Set(),parent=new Int32Array(nv);for(let i=0;i<nv;i++)parent[i]=i;
+  const find=a=>{while(parent[a]!==a){parent[a]=parent[parent[a]];a=parent[a]}return a};
+  const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[a]=b};
+  const areaEps=diag*diag*1e-12,bedTol=diag*1e-3;
+  const add=(a,b)=>{const lo=a<b?a:b,hi=a<b?b:a,dir=a<b?1:2,k=lo*nv+hi;const v=edges.get(k)||0;edges.set(k,(((v>>2)+1)<<2)|((v&3)|dir))};
+  const overFace=new Uint8Array(nt);
+  for(let t=0;t<nt;t++){
+    const a=idx[t*3],b=idx[t*3+1],c=idx[t*3+2];
+    const ax=verts[a*3],ay=verts[a*3+1],az=verts[a*3+2],bx=verts[b*3],by=verts[b*3+1],bz=verts[b*3+2],cx=verts[c*3],cy=verts[c*3+1],cz=verts[c*3+2];
+    if(!isFinite(ax+ay+az+bx+by+bz+cx+cy+cz)){nanCount++;continue}
+    const ux=bx-ax,uy=by-ay,uz=bz-az,vx=cx-ax,vy=cy-ay,vz=cz-az;
+    const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+    const al=Math.hypot(nx,ny,nz)/2;
+    if(a===b||b===c||a===c||al<areaEps){degenerate++;continue}
+    area+=al;
+    vol+=(ax*(by*cz-bz*cy)-ay*(bx*cz-bz*cx)+az*(bx*cy-by*cx))/6;
+    const onBed=az<mn[2]+bedTol&&bz<mn[2]+bedTol&&cz<mn[2]+bedTol;
+    if(!onBed&&nz/(2*al)<-0.7071){overArea+=al;overFace[t]=1;supportVol+=(Math.abs(nz)/2)*(((az+bz+cz)/3)-mn[2])*0.15}
+    const s=[a,b,c].sort((x,y)=>x-y).join('_');
+    if(faceKeys.has(s))dupFaces++;else faceKeys.add(s);
+    add(a,b);add(b,c);add(c,a);uni(a,b);uni(b,c);
+  }
+  faceKeys.clear();
+  let open=0,nonMan=0,badOrient=0;const bad=[];
+  for(const [k,v] of edges){
+    const cnt=v>>2,mask=v&3;
+    if(cnt===1){open++;bad.push(k)}else if(cnt>2){nonMan++;bad.push(k)}else if(mask!==3){badOrient++;bad.push(k)}
+  }
+  const used=new Uint8Array(nv);for(let i=0;i<nt*3;i++)used[idx[i]]=1;
+  const comps=new Set();for(let i=0;i<nv;i++)if(used[i])comps.add(find(i));
+  const badPos=new Float32Array(bad.length*6);
+  bad.forEach((k,i)=>{const a=Math.floor(k/nv),b=k%nv;for(let j=0;j<3;j++){badPos[i*6+j]=verts[a*3+j];badPos[i*6+3+j]=verts[b*3+j]}});
+  const watertight=open===0&&nonMan===0&&badOrient===0;
+  let thin=null;
+  if(watertight&&degenerate===0&&nt<=2e6)thin=thinWall(verts,idx,nt,vol,diag);
+  return {nt,nv,size,mn,mx,diag,degenerate,nanCount,dupFaces,open,nonMan,badOrient,shells:comps.size,area,vol,volAbs:Math.abs(vol),
+    overPct:area?overArea/area*100:0,overFace,supportVol,badPos,watertight,thin};
+}
+
+/* ---------- Rapor ---------- */
+const fmt=n=>n.toLocaleString('tr-TR');
+function report(r,name){
+  const c=[],push=(lvl,n,d,fix)=>c.push({lvl,n,d,fix});
+  if(r.open>0)push('bad','Açık kenarlar (delik)',`${fmt(r.open)} kenar yalnızca bir yüzeye bağlı; model kapalı değil. Dilimleyici içi/dışı ayırt edemez, katmanlar eksik çıkabilir. Kırmızı çizgilerle gösterildi.`,'Modelleme programında delikleri kapat (Meshmixer "Make Solid", Blender "Fill holes", Windows 3D Builder onarımı).');
+  else push('ok','Model kapalı (watertight)','Açık kenar bulunamadı.');
+  if(r.nonMan>0)push('bad','Non-manifold kenarlar',`${fmt(r.nonMan)} kenar ikiden fazla yüzeye bağlı. Genelde birleşmiş veya çakışmış geometri demektir.`,'Çakışan parçaları boolean birleştirme ile tek gövde yap, içte kalan yüzleri sil.');
+  else push('ok','Manifold geometri','Her kenar en fazla iki yüzeye bağlı.');
+  if(r.badOrient>0)push('bad','Yüz yönleri tutarsız',`${fmt(r.badOrient)} kenarda komşu yüzlerin normal yönleri çelişiyor.`,'Modelleme programında "Recalculate normals / Normalleri düzelt" uygula.');
+  else if(!(r.watertight&&r.vol<0))push('ok','Yüz yönleri tutarlı','Normaller uyumlu.');
+  if(r.watertight&&r.vol<0)push('bad','Model ters dönmüş (içi dışa)','Hacim negatif; tüm normaller içeri bakıyor.','Soldaki "Ters modeli düzelt ve indir" düğmesi tüm yüzleri çevirip yeni STL verir.');
+  if(r.degenerate>0)push(r.degenerate>r.nt*0.01?'bad':'warn','Dejenere üçgenler',`${fmt(r.degenerate)} alanı sıfır olan üçgen var.`,'Dilimleyicinin otomatik onarımı genelde yeter; olmazsa "Remove degenerate faces" kullan.');
+  else push('ok','Dejenere üçgen yok','Tüm üçgenlerin alanı geçerli.');
+  if(r.dupFaces>0)push('warn','Çift yüzler',`${fmt(r.dupFaces)} üst üste binen aynı üçgen var.`,'Duplicate faces temizle / vertex birleştir (Merge by distance).');
+  if(r.nanCount>0)push('bad','Geçersiz koordinat',`${fmt(r.nanCount)} üçgende NaN/sonsuz değer var.`,'Dosyayı kaynağından yeniden dışa aktar.');
+  if(r.shells>1)push('warn','Birden fazla parça',`${r.shells} ayrı kabuk var. Havada duran parçalar tablaya tutunmayabilir.`,'Bilerek ayrı değilse parçaları birleştir; ayrıysa her birinin tablaya değdiğinden emin ol.');
+  else push('ok','Tek parça','Tek bir kabuk var.');
+  // sığma
+  const B=bed(),maxDim=Math.max(...r.size),minDim=Math.min(...r.size);
+  const fitsXY=(r.size[0]<=B[0]&&r.size[1]<=B[1])||(r.size[0]<=B[1]&&r.size[1]<=B[0]);
+  if(fitsXY&&r.size[2]<=B[2])push('ok','Tablaya sığıyor',`${r.size.map(x=>x.toFixed(1)).join(' × ')} mm, tabla ${B.join(' × ')} mm.`);
+  else push('bad','Tablaya sığmıyor',`Model ${r.size.map(x=>x.toFixed(1)).join(' × ')} mm; tabla ${B.join(' × ')} mm.`,'Ölçeği küçült, modeli parçalara böl veya daha büyük yazıcı seç. Birim yanlışsa sağdaki birim ayarını değiştir.');
+  if(maxDim<2)push('warn','Çok küçük model',`En büyük boyut ${maxDim.toFixed(3)} mm. Birim yanlış olabilir.`,'Model birimi ayarını (cm/inç/m) değiştirip tekrar bak.');
+  if(r.thin){
+    if(r.thin.min<0.4)push('bad','Çok ince duvar',`Ölçülen en ince nokta ≈ ${r.thin.min.toFixed(2)} mm. 0.4 mm nozulun çıkarabileceğinden ince.`,'İnce bölgeleri kalınlaştır (en az 0.8–1.2 mm, yani 2 çevre hattı).');
+    else if(r.thin.below/Math.max(1,r.thin.hits)>0.05||r.thin.min<0.8)push('warn','İnce duvarlar olabilir',`Örneklenen noktaların %${(r.thin.below/Math.max(1,r.thin.hits)*100).toFixed(0)}'i 0.8 mm'den ince (en ince ≈ ${r.thin.min.toFixed(2)} mm).`,'Dayanıklılık için duvarları 1 mm civarına çıkar veya dilimleyicide "ince duvarları algıla" aç.');
+    else push('ok','Duvar kalınlığı yeterli',`Örneklenen en ince nokta ≈ ${isFinite(r.thin.min)?r.thin.min.toFixed(2):'—'} mm.`);
+  }
+  if(!r.thin&&r.watertight&&minDim<0.4&&maxDim>=2)push('warn','İnce yapı olabilir',`En ince boyut ${minDim.toFixed(2)} mm.`,'0.4 mm nozuldan ince kısımlar basılamaz.');
+  if(r.overPct>25)push('warn','Çok çıkıntı var',`Yüzey alanının %${r.overPct.toFixed(0)}'i 45°'den fazla eğimli (Z yukarı varsayımı). Turuncu ile gösterilir.`,'Destek (support) ekle veya modeli döndürüp çıkıntıyı azalt.');
+  else push('ok','Destek ihtiyacı düşük',`45° üstü çıkıntı oranı %${r.overPct.toFixed(0)}.`);
+
+  const bads=c.filter(x=>x.lvl==='bad').length,warns=c.filter(x=>x.lvl==='warn').length;
+  const score=Math.max(0,100-bads*25-warns*8);
+  const v=$('verdict');v.style.display='flex';
+  v.className='verdict '+(bads?'bad':warns?'warn':'ok');
+  v.querySelector('.sc').textContent=score;
+  v.querySelector('.t').textContent=bads?'Basılmaz, düzeltme gerek':warns?'Büyük ihtimalle basılır, dikkat et':'Evet, basılır!';
+  v.querySelector('.s').textContent=`${bads} hata · ${warns} uyarı · ${name}`;
+  const order={bad:0,warn:1,ok:2};
+  $('checks').innerHTML=c.sort((a,b)=>order[a.lvl]-order[b.lvl]).map(x=>`<div class="chk"><span class="dot ${x.lvl}"></span><div><div class="n">${x.n}</div><div class="d">${x.d}</div>${x.fix&&x.lvl!=='ok'?`<div class="fix">${x.fix}</div>`:''}</div></div>`).join('');
+  renderEstimates();
+}
+/* ---------- Süre / filament tahmini ---------- */
+function fits(r,p){const B=p.b;return ((r.size[0]<=B[0]&&r.size[1]<=B[1])||(r.size[0]<=B[1]&&r.size[1]<=B[0]))&&r.size[2]<=B[2]}
+function estimate(r,p){
+  const lh=+$('layer').value,inf=+$('infill').value/100,sup=$('supp').value==='1';
+  const vol=r.volAbs,shell=Math.min(vol,r.area*0.9);
+  let mat=shell+(vol-shell)*inf;if(sup)mat+=r.supportVol;
+  const grams=mat/1000*MAT[$('mat').value];
+  const flow=Math.min(p.flow,lh*0.45*p.spd)*p.eff;
+  const layers=r.size[2]/lh;
+  const sec=(mat/flow)*1.06+layers*p.lay+p.heat;
+  return {grams,meters:mat/2.405/1000,sec};
+}
+function dur(s){const m=Math.round(s/60);if(m<60)return m+' dk';const h=Math.floor(m/60),mm=m%60;return h+' sa'+(mm?' '+mm+' dk':'')}
+function renderEstimates(){
+  const r=state.r;if(!r)return;
+  const sel=PRINTERS[+$('printer').value],e=estimate(r,sel),ok=fits(r,sel);
+  $('info').innerHTML=[['Üçgen',fmt(r.nt)],['Boyut (mm)',r.size.map(x=>x.toFixed(1)).join(' × ')],
+    ['Hacim',(r.watertight?'':'≈ ')+(r.volAbs/1000).toFixed(2)+' cm³'],['Filament',`${e.grams.toFixed(0)} g · ${e.meters.toFixed(1)} m`],
+    ['Süre (seçili yazıcı)',ok?dur(e.sec):'Sığmıyor'],['Parça sayısı',r.shells]]
+    .map(([a,b])=>`<div><small>${a}</small>${b}</div>`).join('');
+  const rows=PRINTERS.map((p,i)=>({p,i,ok:fits(r,p),e:estimate(r,p)})).sort((a,b)=>(b.ok-a.ok)||(a.e.sec-b.e.sec));
+  const nf=rows.filter(x=>x.ok).length;
+  $('est').style.display='block';
+  $('est').innerHTML=`<h2>21 yazıcıda tahmini süre<span>${nf} yazıcıya sığıyor</span></h2>`+
+    rows.map(x=>`<div class="pr ${x.ok?'':'no'} ${x.i===+$('printer').value?'sel':''}" data-i="${x.i}"><div>${x.p.n}<small>${x.p.b.join('×')} mm</small></div><b>${x.ok?dur(x.e.sec):'Sığmıyor'}</b></div>`).join('')+
+    `<div class="note">Toplam ${e.grams.toFixed(0)} g ${$('mat').selectedOptions[0].textContent.split(' ')[0]} (${e.meters.toFixed(1)} m, 1.75 mm). Filament miktarı yazıcıdan bağımsızdır. Süreler yaklaşık tahmindir (±%30); gerçek süre dilimleyici ayarlarına bağlıdır${r.watertight?'':'. Model kapalı olmadığı için hacim de yaklaşıktır'}.</div>`;
+  $('est').querySelectorAll('.pr').forEach(d=>d.onclick=()=>{$('printer').value=d.dataset.i;$('printer').onchange()});
+}
+
+/* ---------- Görüntüleyici ---------- */
+let overOn=false,colGray,colOver;
+function show(pos,r){
+  if(group){scene.remove(group);group.traverse(o=>{o.geometry&&o.geometry.dispose()})}
+  group=new THREE.Group();
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.computeVertexNormals();
+  const nt=pos.length/9;colGray=new Float32Array(nt*9).fill(0.74);colOver=new Float32Array(nt*9);
+  for(let t=0;t<nt;t++)for(let k=0;k<3;k++){const o=t*9+k*3;if(r.overFace[t]){colOver[o]=1;colOver[o+1]=.55;colOver[o+2]=.1}else{colOver[o]=colOver[o+1]=colOver[o+2]=0.74}}
+  g.setAttribute('color',new THREE.BufferAttribute(overOn?colOver:colGray,3));
+  meshObj=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,metalness:.1,roughness:.6,side:THREE.DoubleSide}));
+  wireObj=new THREE.LineSegments(new THREE.WireframeGeometry(g),new THREE.LineBasicMaterial({color:0x4aa3ff,transparent:true,opacity:.35}));wireObj.visible=false;
+  group.add(meshObj,wireObj);
+  if(r.badPos.length){
+    const eg=new THREE.BufferGeometry();eg.setAttribute('position',new THREE.BufferAttribute(r.badPos,3));
+    errObj=new THREE.LineSegments(eg,new THREE.LineBasicMaterial({color:0xff2d2d,depthTest:false}));errObj.renderOrder=10;group.add(errObj);
+  }else errObj=null;
+  group.position.set(-(r.mn[0]+r.mx[0])/2,-(r.mn[1]+r.mx[1])/2,-r.mn[2]);
+  scene.add(group);
+  drawBed(r);
+  const d=Math.max(r.diag,Math.max(...bed().slice(0,2))*0.6);
+  camera.position.set(d*1.0,-d*1.3,d*0.9);controls.target.set(0,0,r.size[2]/2);
+  camera.near=d/1000;camera.far=d*100;camera.updateProjectionMatrix();controls.update();controls.saveState();
+  $('empty').style.display='none';
+  renderTools(r);legend(r);
+}
+function drawBed(r){
+  if(bedObj){scene.remove(bedObj);bedObj.traverse(o=>o.geometry&&o.geometry.dispose())}
+  const B=bed();bedObj=new THREE.Group();
+  const gr=new THREE.GridHelper(Math.max(B[0],B[1]),Math.round(Math.max(B[0],B[1])/10),0x2a2a2a,0x141414);gr.rotation.x=Math.PI/2;bedObj.add(gr);
+  const fits=((r.size[0]<=B[0]&&r.size[1]<=B[1])||(r.size[0]<=B[1]&&r.size[1]<=B[0]))&&r.size[2]<=B[2];
+  const pts=[[-B[0]/2,-B[1]/2],[B[0]/2,-B[1]/2],[B[0]/2,B[1]/2],[-B[0]/2,B[1]/2]].map(p=>new THREE.Vector3(p[0],p[1],0));
+  bedObj.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:fits?0x6a6a6a:0xff4d4d})));
+  scene.add(bedObj);
+}
+function legend(r){
+  const L=[];
+  if(r.badPos.length)L.push('<div><i style="background:#ff2d2d"></i>Hatalı kenar</div>');
+  if(overOn)L.push('<div><i style="background:#ff8c1a"></i>Çıkıntı (destek gerekir)</div>');
+  $('legend').innerHTML=L.join('');
+}
+function renderTools(r){
+  const t=$('tools');
+  t.innerHTML='<button id="bO">Çıkıntılar</button><button id="bW">Tel kafes</button>'+(r.badPos.length?'<button id="bE" class="act">Hatalar</button>':'')+'<button id="bR">Sıfırla</button>'+(r.watertight&&r.vol<0?'<button id="bF">Ters modeli düzelt ve indir</button>':'');
+  if(overOn)$('bO').classList.add('act');
+  $('bO').onclick=e=>{overOn=!overOn;meshObj.geometry.setAttribute('color',new THREE.BufferAttribute(overOn?colOver:colGray,3));e.target.classList.toggle('act',overOn);legend(r)};
+  $('bW').onclick=e=>{wireObj.visible=!wireObj.visible;e.target.classList.toggle('act')};
+  if($('bE'))$('bE').onclick=e=>{errObj.visible=!errObj.visible;e.target.classList.toggle('act',errObj.visible)};
+  $('bR').onclick=()=>controls.reset();
+  if($('bF'))$('bF').onclick=()=>{
+    const a=document.createElement('a');a.href=URL.createObjectURL(toSTL(state.scaled,true));
+    a.download=(state.name.replace(/\.[^.]+$/,'')||'model')+'_duzeltilmis.stl';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  };
+}
+
+/* ---------- Akış ---------- */
+const state={raw:null,scaled:null,r:null,name:''};
+function setLoading(msg,sub){const v=$('verdict');v.style.display='flex';v.className='verdict load';v.querySelector('.t').textContent=msg;v.querySelector('.s').textContent=sub||''}
+async function run(){
+  if(!state.raw)return;
+  setLoading('Analiz ediliyor…',state.name);
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const s=unitF();
+    state.scaled=s===1?state.raw:state.raw.map(x=>x*s);
+    state.r=analyze(state.scaled);
+    show(state.scaled,state.r);report(state.r,state.name);
+  }catch(e){const v=$('verdict');v.className='verdict bad';v.querySelector('.sc').textContent='!';v.querySelector('.t').textContent='Analiz başarısız';v.querySelector('.s').textContent=e.message}
+}
+async function handle(f){
+  if(!f)return;
+  const ext=f.name.split('.').pop().toLowerCase();
+  try{
+    if(!['stl','obj'].includes(ext))throw new Error('Sadece .stl ve .obj desteklenir.');
+    setLoading('Dosya okunuyor…',f.name);
+    const buf=await f.arrayBuffer();
+    state.raw=ext==='stl'?parseSTL(buf):parseOBJ(buf);state.name=f.name;
+    await run();
+  }catch(e){
+    const v=$('verdict');v.style.display='flex';v.className='verdict bad';v.querySelector('.sc').textContent='!';v.querySelector('.t').textContent='Dosya okunamadı';v.querySelector('.s').textContent=e.message;
+  }
+}
+$('file').onchange=e=>{handle(e.target.files[0]);e.target.value=''};
+$('unit').onchange=()=>{save('unit');run()};
+$('printer').onchange=()=>{
+  save('printer');
+  if(state.r){drawBed(state.r);report(state.r,state.name)}
+};
+['mat','layer','infill','supp'].forEach(k=>$(k).onchange=()=>{save(k);renderEstimates()});
+document.querySelectorAll('.samples a').forEach(a=>a.onclick=()=>{
+  const k=a.dataset.s;
+  state.raw=k==='good'?box(20):k==='open'?box(20,true):box(20,false,true);
+  state.name={good:'sağlam-küp.stl',open:'delikli-küp.stl',flip:'ters-küp.stl'}[k];
+  $('unit').value='1';run();
+});
+const drop=$('drop');
+['dragenter','dragover'].forEach(ev=>addEventListener(ev,e=>{e.preventDefault();drop.classList.add('on')}));
+['dragleave','drop'].forEach(ev=>addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('on')}));
+addEventListener('drop',e=>handle(e.dataTransfer.files[0]));
+</script>
+</body>
+</html>
